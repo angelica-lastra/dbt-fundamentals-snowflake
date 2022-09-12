@@ -1,4 +1,12 @@
-with payments as (
+with 
+
+source as (
+
+    select * from {{ source('stripe','payment')}}
+
+),
+
+transformed as (
         
     select
         id as payment_id,
@@ -6,10 +14,11 @@ with payments as (
         paymentmethod as payment_method,
         status,
         amount / 100 as amount,
-        created as created_at
+        created as created_at,
+        _batched_at as batched_at
         
-    from {{ source('stripe', 'payment') }}
+    from source
 
 )
 
-select * from payments
+select * from transformed
