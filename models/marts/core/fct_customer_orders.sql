@@ -17,17 +17,6 @@ payments as (
 
 ),
 
-payment_amounts_greater as (
-
-    select
-
-        order_id,
-        total_amount_paid as customer_lifetime_value
-    
-    from payments
-    order by 1
-),
-
 customer_orders as (
 
     select
@@ -51,6 +40,19 @@ customer_orders as (
     group by 1,2,3,4,5,6,7,8
 ),
 
+payment_amounts_greater as (
+
+    select
+
+        payments.order_id,
+        sum(payments.total_amount_paid) over (partition by customer_orders.customer_id order by customer_orders.order_placed_at) as customer_lifetime_value
+    
+    from payments
+    left join customer_orders 
+        on payments.order_id = customer_orders.order_id
+    order by 1
+),
+
 final as (
 
     select
@@ -63,13 +65,17 @@ final as (
         customer_orders.payment_finalized_date,
         customer_orders.customer_first_name,
         customer_orders.customer_last_name,
+
         row_number() over (order by payments.order_id) as transaction_seq,
         row_number() over (partition by customer_orders.customer_id order by payments.order_id) as customer_sales_seq,
-        case when customer_orders.first_order_date = customer_orders.order_placed_at
-        then 'new'
-        else 'return' end as nvsr,
+        
+        case when rank() over (partition by customer_orders.customer_id order by customer_orders.order_placed_at, customer_orders.order_id) = 1
+        then 'new' else 'return'
+        end as nvsr,
+        
         payment_amounts_greater.customer_lifetime_value,
-        customer_orders.first_order_date as fdos
+        
+        first_value(customer_orders.order_placed_at) over (partition by customer_orders.customer_id order by customer_orders.order_placed_at) as fdos
 
     from payments
     left join customer_orders
